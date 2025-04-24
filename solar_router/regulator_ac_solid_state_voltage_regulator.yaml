@@ -19,7 +19,7 @@ script:
 
 # Control the relay through GPIO
 output:
-  - platform: esp8266_pwm
+  - platform: slow_pwm
     id: ssr_output
     pin: ${regulator_gate_pin}
     period: 500us
