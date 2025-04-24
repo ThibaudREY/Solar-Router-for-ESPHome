@@ -19,7 +19,7 @@ script:
 
 # Control the relay through GPIO
 output:
-  - platform: slow_pwm
+  - platform: ledc
     id: ssr_output
     pin: ${regulator_gate_pin}
-    period: 500us
+    frequency: 2kHz
