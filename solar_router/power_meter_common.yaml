@@ -2,9 +2,6 @@
 # User interaction
 # ----------------------------------------------------------------------------------------------------
 
-substitutions:
-  power_meter_activated_at_start: "1"
-
 # Activate or not power meter
 globals:
   - id: power_meter_activated

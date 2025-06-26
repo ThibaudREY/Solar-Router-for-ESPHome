@@ -44,8 +44,8 @@ script:
                           - response->status_code
                           - response->duration_ms
                     - lambda: |-
-                        ESP_LOGI("power_meter", "Script running...");
-                        ESP_LOGI("timer", "on_time triggered, activated = %d", id(power_meter_activated));
+                        ESP_LOGW("power_meter", "Script running...");
+                        ESP_LOGW("timer", "on_time triggered, activated = %d", id(power_meter_activated));
 
                         if (response->status_code != 200) {
                             ESP_LOGW("custom", "HTTP Request failed with status: %d", response->status_code);
@@ -71,6 +71,8 @@ script:
                     - lambda: |-
                         ESP_LOGW("custom", "HTTP Request failed or timeout occurred");
                         id(real_power).publish_state(NAN);
+        else:
+          ESP_LOGW("custom", "Network not connected");
 
 time:
   - platform: sntp
