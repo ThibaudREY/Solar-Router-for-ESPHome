@@ -65,9 +65,11 @@ packages:
     refresh: 1s
     files:
       - path: solar_router/common.yaml
-      - path: solar_router/power_meter_proxy_client.yaml
+      - path: solar_router/power_meter_shelly_em.yaml
         vars:
-          power_meter_ip_address: "192.168.1.28"
+          power_meter_ip_address: "192.168.1.15"
+          power_meter_activated_at_start: "1"
+          emeter_index: "1"
       - path: solar_router/regulator_ac_solid_state_voltage_regulator.yaml
         vars:
           regulator_gate_pin: GPIO26
