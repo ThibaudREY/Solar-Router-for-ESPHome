@@ -38,6 +38,9 @@ script:
                             ESP_LOGW("custom", "HTTP Request failed with status: %d", response->status_code);
                             id(real_power).publish_state(NAN);
                         } else {
+                        ESP_LOGI("custom", "HTTP Status: %d", response->status_code);
+                        ESP_LOGI("custom", "Body: %s", body.c_str());
+                        
                           bool parse_success = json::parse_json(body, [](JsonObject root) -> bool {
                               if (!root.containsKey("value")) {
                                   ESP_LOGW("custom", "Invalid JSON structure");

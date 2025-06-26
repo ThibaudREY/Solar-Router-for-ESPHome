@@ -39,7 +39,7 @@ ota:
 
 # Configure RJ45 ethernet
 # To activate RJ45 ethernet :
-#   Uncomment this section parameters and comment WiFi section 
+#   Uncomment this section parameters and comment WiFi section
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
@@ -65,13 +65,8 @@ packages:
     refresh: 1s
     files:
       - path: solar_router/common.yaml
-      - path: solar_router/power_meter_proxy_client.yaml
+      - path: solar_router/power_meter_wt32-eth01.yaml
         vars:
-          power_meter_ip_address: "192.168.1.28"
-      - path: solar_router/regulator_ac_solid_state_voltage_regulator.yaml
-        vars:
-          regulator_gate_pin: GPIO26
-      - path: solar_router/engine_1dimmer.yaml
-        vars:
-          green_led_pin: GPIO21
-          yellow_led_pin: GPIO20
+          phase_a_pin: 'A0'
+          phase_b_pin: 'A1'
+          phase_c_pin: 'A2'

@@ -1,27 +1,36 @@
-<<: !include power_meter_common.yaml
+substitutions:
+  phase_a_pin: ${phase_a_pin}
+  phase_b_pin: ${phase_b_pin}
+  phase_c_pin: ${phase_c_pin}
 
-# ----------------------------------------------------------------------------------------------------
-# Define scripts for power collection
-# ----------------------------------------------------------------------------------------------------
+sensor:
+  - platform: adc
+    pin: ${phase_a_pin}
+    id: phase_a_adc
+    update_interval: never
+
+  - platform: adc
+    pin: ${phase_b_pin}
+    id: phase_b_adc
+    update_interval: never
+
+  - platform: adc
+    pin: ${phase_c_pin}
+    id: phase_c_adc
+    update_interval: never
 
 script:
-  # Shelly script gather power reports from Energy Meter and update globals (real_power)
-  # Information are provided as json. Power exchanged with the grid is names "power"
-  # When this value is positive, energy is taken from the grid.
-  # When this value is negative, energy is pushed to the grid.
   - id: power_meter_source
     mode: single
     then:
-      - platform: adc
-        pin: A0
-        id: real_power
-time:
-  - platform: sntp
-    on_time:
-      - seconds: /1
-        then:
-          - if:
-              condition:
-                - lambda: return id(power_meter_activated) != 0;
-              then:
-                - script.execute: power_meter_source
+      - if:
+          condition:
+            lambda: 'return network::is_connected();'
+          then:
+            - lambda: |-
+                float rawA = id(phase_a_adc).raw_value;
+                float rawB = id(phase_b_adc).raw_value;
+                float rawC = id(phase_c_adc).raw_value;
+
+                float calibrated = (rawA * 30.0) + (rawB * 32.0) + (rawC * 29.0);
+                id(real_power).publish_state(calibrated);
