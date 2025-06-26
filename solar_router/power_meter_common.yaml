@@ -9,8 +9,8 @@ substitutions:
 globals:
   - id: power_meter_activated
     type: int
-    initial_value: ${power_meter_activated_at_start}
-    restore_value: True
+    initial_value: "1"
+    restore_value: False
 
 
 # ----------------------------------------------------------------------------------------------------
