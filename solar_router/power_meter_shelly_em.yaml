@@ -44,6 +44,9 @@ script:
                           - response->status_code
                           - response->duration_ms
                     - lambda: |-
+                        ESP_LOGI("power_meter", "Script running...");
+                        ESP_LOGI("timer", "on_time triggered, activated = %d", id(power_meter_activated));
+
                         if (response->status_code != 200) {
                             ESP_LOGW("custom", "HTTP Request failed with status: %d", response->status_code);
                             id(real_power).publish_state(NAN);
