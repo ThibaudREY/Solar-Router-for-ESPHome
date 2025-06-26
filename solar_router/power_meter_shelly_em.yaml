@@ -72,7 +72,8 @@ script:
                         ESP_LOGW("custom", "HTTP Request failed or timeout occurred");
                         id(real_power).publish_state(NAN);
           else:
-            ESP_LOGW("custom", "Network not connected");
+            - lambda: |-
+                ESP_LOGW("custom", "Network not connected");
 
 time:
   - platform: sntp
