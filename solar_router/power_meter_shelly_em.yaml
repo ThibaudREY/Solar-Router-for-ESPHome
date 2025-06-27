@@ -12,7 +12,6 @@ http_request:
   useragent: esphome/device
   timeout: 10s
   verify_ssl: False
-  log_response_body: true
 
 # ----------------------------------------------------------------------------------------------------
 # Define scripts for power collection
