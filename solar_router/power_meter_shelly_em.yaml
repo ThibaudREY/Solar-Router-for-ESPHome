@@ -10,7 +10,7 @@ esphome:
 http_request:
   id: http_request_data
   useragent: esphome/device
-  timeout: 10s
+  timeout: 2s
   verify_ssl: False
 
 # ----------------------------------------------------------------------------------------------------
