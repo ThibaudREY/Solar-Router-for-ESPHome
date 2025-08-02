@@ -23,10 +23,12 @@ logger:
 
 # Enable Home Assistant API
 api:
+  encryption:
+    key: "2AvrUhd+o+2rBWMnLc3bbXDD0iDDixG/4W52w1HF2Jg="
 
-# Allow Over-The-Air updates
 ota:
   - platform: esphome
+    password: "e027db93a8e73ad3e1c3f0a276b8aada"
 
 # WiFi connection
 # To activate WiFi :

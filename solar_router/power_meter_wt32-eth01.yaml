@@ -21,7 +21,7 @@ globals:
   - id: reverse
     type: bool
     restore_value: no
-    initial_value: False
+    initial_value: 'false'
 
 script:
   # Gather power reports from JSY-MK-354 Energy Meter and update globals (real_power)
