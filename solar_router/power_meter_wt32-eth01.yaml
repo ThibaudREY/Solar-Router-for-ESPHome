@@ -45,9 +45,8 @@ script:
                 on_response:
                   then:
                     - logger.log:
-                        format: 'Response %s status: %d, Duration: %u ms'
+                        format: 'Response status: %d, Duration: %u ms'
                         args:
-                          - response->body
                           - response->status_code
                           - response->duration_ms
                     - lambda: |-
