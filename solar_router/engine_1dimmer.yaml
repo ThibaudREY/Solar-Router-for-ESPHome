@@ -125,6 +125,8 @@ script:
             return;
           }
           
+          log.info(id(hc));
+          
           if (id(hc) == true) {
             id(router_level).publish_state(100.0);
             return;
