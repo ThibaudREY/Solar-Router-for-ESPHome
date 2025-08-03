@@ -125,7 +125,7 @@ script:
             return;
           }
           
-          if (id(hc).state) {
+          if (id(hc) == true) {
             id(router_level).publish_state(100.0);
             return;
           }

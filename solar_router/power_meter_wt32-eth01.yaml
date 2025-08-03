@@ -59,7 +59,7 @@ script:
                         } else {
                         
                           bool parse_success = json::parse_json(body, [](JsonObject root) -> bool {
-                              if (!root.containsKey("value")) {
+                              if (!root["value"].is()) {
                                   ESP_LOGW("custom", "Invalid JSON structure");
                                   return false;
                               }
