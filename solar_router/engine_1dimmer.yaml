@@ -124,13 +124,10 @@ script:
             id(router_level).publish_state(0);
             return;
           }
-          
-          ESP_LOGI("%s", id(hc) ? "true" : "false");
-          
+                    
           if (id(hc).state == true) {
-            ESP_LOGI("%s", "HC is true");
-            //id(router_level).publish_state(100.0);
-            //return;
+            id(router_level).publish_state(100.0);
+            return;
           }
           
           double delta = -1*(id(real_power).state-id(target_grid_exchange).state)*id(reactivity).state/1000;
