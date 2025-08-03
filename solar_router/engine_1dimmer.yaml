@@ -127,7 +127,7 @@ script:
           
           ESP_LOGI("%s", id(hc) ? "true" : "false");
           
-          if (id(hc) == true) {
+          if (id(hc).state == true) {
             ESP_LOGI("%s", "HC is true");
             //id(router_level).publish_state(100.0);
             //return;
