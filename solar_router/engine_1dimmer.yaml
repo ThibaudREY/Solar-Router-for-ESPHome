@@ -126,8 +126,8 @@ script:
           }
           
           if (id(hc)) {
-            //id(router_level).publish_state(100.0);
-            //return;
+            id(router_level).publish_state(100.0);
+            return;
           }
           
           double delta = -1*(id(real_power).state-id(target_grid_exchange).state)*id(reactivity).state/1000;
