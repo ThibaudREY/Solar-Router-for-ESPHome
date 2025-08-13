@@ -141,64 +141,80 @@ script:
           if (dt <= 0.0) dt = 1.0;
           prev_ts = now;
           
-          // --- Tuned parameters (aim: remove ~10% offset without overshoot) ---
-          const double Kp = 0.36;      // ↑ a touch to tighten response
-          const double Ki = 0.012;     // ↑ integral to kill steady-state error
-          const double Kd = 0.10;      // derivative damping
-          const double Kb = 0.04;      // anti-windup back-calculation gain
-          const double max_delta = 6.0;  // %/s rate limit
-          const double deadband = 25.0;  // smaller deadband → integrator can work
-          const double alpha = 0.90;     // derivative LPF (higher = smoother)
-          const double I_LIMIT = 6000.0; // safety cap
+          // --- Scaling & adaptive limits (tuned for your -300..-1000 W range) ---
+          const double POWER_SCALE = 1000.0; // interpret error per 1000 W (1 kW)
+          const double BASE_MAX_DELTA = 4.0; // %/s minimum rate limit
+          const double DELTA_PER_KW = 6.0;   // extra %/s per 1 kW of error magnitude
           
-          // --- Signals ---
-          double target = id(target_grid_exchange).state;  // W
-          double actual = id(real_power).state;            // W
-          double error = target - actual;                  // + => need more load
+          // --- Tuned PID gains (in percent per kW units) ---
+          // Interpretation: Kp = percent_per_kW, Ki = percent_per_kW_per_s, Kd = percent_per_kW
+          const double Kp = 12.0;   // 12% change per 1 kW of steady error
+          const double Ki = 0.025;  // integral accumulates -> % per (kW*s)
+          const double Kd = 0.8;    // derivative term scaled per kW
+          const double Kb = 0.04;   // anti-windup back-calculation
+          const double deadband = 20.0;  // W deadband (small to let integrator act)
+          const double alpha = 0.9;      // derivative low-pass (0..1)
+          const double I_LIMIT = 8000.0; // integral safety cap (in kW-s percent units)
           
-          // Deadband near zero exchange
-          if (fabs(error) < deadband) error = 0.0;
+          // --- Measurements ---
+          double target = id(target_grid_exchange).state; // W
+          double actual = id(real_power).state;           // W
+          double error_w = target - actual;               // W (+ => need more load)
+          double abs_error_w = fabs(error_w);
           
-          // Soft integral decay on sign flip (prevents rebound undershoot)
-          if (error * prev_error < 0) {
-            integral *= 0.6;  // keep 60% of bias instead of wiping it
+          // Deadband
+          if (abs_error_w < deadband) {
+            error_w = 0.0;
+            abs_error_w = 0.0;
           }
           
-          // Derivative with low-pass filter
+          // Error normalized to kW units for consistent gains
+          double error = error_w / POWER_SCALE;  // now in kW (e.g. -0.5 .. -1.0)
+          
+          // Soft integral decay on sign flip (avoid big rebound but keep bias)
+          if (error * prev_error < 0) {
+            integral *= 0.6;
+          }
+          
+          // Derivative (raw) and filtered derivative
           double d_raw = (error - prev_error) / dt;
           d_filt = alpha * d_filt + (1.0 - alpha) * d_raw;
           
-          // PID (unclamped control increment)
-          double p_term = Kp * error;
-          double i_term = Ki * integral;
-          double d_term = Kd * d_filt;
-          double u = p_term + i_term + d_term;   // requested delta (%)
+          // PID (produces percent units)
+          double p_term = Kp * error;            // percent
+          double i_term = Ki * integral;         // percent (integral in kW*s)
+          double d_term = Kd * d_filt;           // percent
+          double u = p_term + i_term + d_term;   // requested percent delta (unclamped)
+          
+          // Adaptive max_delta based on error magnitude (bigger errors allow faster correction)
+          double adaptive_max = BASE_MAX_DELTA + DELTA_PER_KW * (abs_error_w / POWER_SCALE);
+          // safety clamp
+          if (adaptive_max < BASE_MAX_DELTA) adaptive_max = BASE_MAX_DELTA;
+          if (adaptive_max > 20.0) adaptive_max = 20.0; // absolute hard cap
           
           // Rate limit (anti-slam)
           double u_rl = u;
-          if (u_rl >  max_delta) u_rl =  max_delta;
-          if (u_rl < -max_delta) u_rl = -max_delta;
+          if (u_rl >  adaptive_max) u_rl =  adaptive_max;
+          if (u_rl < -adaptive_max) u_rl = -adaptive_max;
           
-          // Apply to level and clamp
+          // Apply to router level and clamp
           double lvl = id(router_level).state;
           double new_lvl = lvl + u_rl;
           if (new_lvl < 0.0)   new_lvl = 0.0;
           if (new_lvl > 100.0) new_lvl = 100.0;
           
-          // --- Anti-windup (back-calculation)
-          // If we were rate-limited OR the output is saturated, bleed the integrator
+          // Anti-windup back-calculation: if rate-limited or saturated, correct integrator
           bool rate_limited = (u_rl != u);
           bool sat_high = (new_lvl >= 100.0) && (u_rl > 0.0);
           bool sat_low  = (new_lvl <= 0.0)   && (u_rl < 0.0);
           if (rate_limited || sat_high || sat_low) {
-            // Back-calc drives integral so that u tracks u_rl
             integral += Kb * (u_rl - u) * dt;
           } else {
-            // Normal integration
+            // Normal integration: integrate the normalized error (kW -> kW*s)
             integral += error * dt;
           }
           
-          // Keep integral bounded
+          // Bound integral
           if (integral >  I_LIMIT) integral =  I_LIMIT;
           if (integral < -I_LIMIT) integral = -I_LIMIT;
           
@@ -206,6 +222,6 @@ script:
           id(router_level).publish_state(new_lvl);
           prev_error = error;
           
-          // Debug:
-          // ESP_LOGD("pid", "dt=%.2f err=%.1f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f lvl=%.1f",
-          //          dt, error, p_term, Ki*integral, d_term, u, u_rl, new_lvl);
+          // Debug (enable if you want to see live PID numbers in logs)
+          // ESP_LOGD("pid", "errW=%.1f err=%.3f P=%.3f I=%.3f D=%.3f u=%.3f u_rl=%.3f max=%.2f lvl=%.1f",
+          //          error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl);
