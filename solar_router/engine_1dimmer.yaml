@@ -119,18 +119,47 @@ script:
       # Define the reouter level based on power measured and grid exchange target
       # The value of regulator is a precentage and is then limited to the range 0 100
       - lambda: |-
-          if (isnan(id(real_power).state) or id(safety_limit)){
-            // If we can have information about grid exchange or if safety_limit is active, do not divert any energy
+          // Block if measurement is invalid or safety override is active
+          if (isnan(id(real_power).state) || id(safety_limit)) {
             id(router_level).publish_state(0);
             return;
           }
-                    
+          
+          // Force full activation during HC
           if (id(hc).state == true) {
             id(router_level).publish_state(100.0);
             return;
           }
           
-          double delta = -1*(id(real_power).state-id(target_grid_exchange).state)*id(reactivity).state/1000;
+          // --- PID Controller ---
+          static double prev_error = 0.0;
+          static double integral = 0.0;
+          
+          const double dt = 1.0;      // seconds between script runs
+          const double Kp = 1.0;      // Proportional gain
+          const double Ki = 0.05;     // Integral gain
+          const double Kd = 0.3;      // Derivative gain
+          
+          double target = id(target_grid_exchange).state;
+          double actual = id(real_power).state;
+          double error = target - actual;
+          
+          // Accumulate integral with anti-windup clamp
+          integral += error * dt;
+          integral = std::clamp(integral, -1000.0, 1000.0);
+          
+          // Calculate derivative
+          double derivative = (error - prev_error) / dt;
+          
+          // PID formula
+          double delta = (Kp * error) + (Ki * integral) + (Kd * derivative);
+          
+          // Adjust router level and clamp to [0, 100]
           double new_router_level = id(router_level).state + delta;
-          new_router_level = std::max(0.0, std::min(100.0, new_router_level));
+          new_router_level = std::clamp(new_router_level, 0.0, 100.0);
+          
+          // Apply new router level
           id(router_level).publish_state(new_router_level);
+          
+          // Store error for next run
+          prev_error = error;
