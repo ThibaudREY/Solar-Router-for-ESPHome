@@ -129,42 +129,73 @@ script:
             return;
           }
           
-          // --- PID variables ---
+          // --- Persistent state ---
+          static double prev_ts = 0.0;
           static double prev_error = 0.0;
           static double integral = 0.0;
+          static double d_filt = 0.0;
           
-          const double dt = 1.0;         // seconds between calls
-          const double Kp = 1.2;         // proportional gain
-          const double Ki = 0.05;        // integral gain
-          const double Kd = 0.25;        // derivative gain
-          const double max_delta = 4.0;  // max % change per cycle (faster than before)
+          // --- Time step (seconds) ---
+          double now = millis() / 1000.0;
+          double dt = (prev_ts > 0.0) ? (now - prev_ts) : 1.0;  // fallback 1s on first run
+          if (dt <= 0.0) dt = 1.0;
+          prev_ts = now;
           
-          double target = id(target_grid_exchange).state;
-          double actual = id(real_power).state;
-          double error = target - actual;
+          // --- Tuned parameters ---
+          const double Kp = 0.34;
+          const double Ki = 0.006;      // integral gain
+          const double Kd = 0.11;       // derivative gain
+          const double max_delta = 5.0; // % per second limit on router_level change
+          const double deadband = 40.0; // W around target where error is treated as zero
+          const double alpha = 0.85;    // derivative low-pass factor (0..1, higher = smoother)
+          const double I_LIMIT = 4000.0;
           
-          // Soft integral decay on overshoot (sign flip)
+          // --- Signals ---
+          double target = id(target_grid_exchange).state; // W
+          double actual = id(real_power).state;           // W
+          double error = target - actual;                 // + => need more load (raise level)
+          
+          // Deadband near zero exchange
+          if (fabs(error) < deadband) error = 0.0;
+          
+          // Soft integral decay when crossing zero (reduces rebound undershoot)
           if (error * prev_error < 0) {
-            integral *= (id(reactivity).state / 100);  // keep 40% of previous bias
+            integral *= 0.5;  // keep 50% of stored bias
           }
           
-          // Integral term (with clamp)
-          integral += error * dt;
-          integral = std::clamp(integral, -500.0, 500.0);
+          // Derivative with low-pass filtering
+          double d_raw = (error - prev_error) / dt;
+          d_filt = alpha * d_filt + (1.0 - alpha) * d_raw;
           
-          // Derivative term
-          double derivative = (error - prev_error) / dt;
+          // Provisional PID
+          double p_term = Kp * error;
+          double i_term = Ki * integral;
+          double d_term = Kd * d_filt;
+          double delta_unclamped = p_term + i_term + d_term;
           
-          // PID computation
-          double delta = (Kp * error) + (Ki * integral) + (Kd * derivative);
+          // Rate limit (anti-slam)
+          double delta = delta_unclamped;
+          if (delta >  max_delta) delta =  max_delta;
+          if (delta < -max_delta) delta = -max_delta;
           
-          // Limit rate of change per update
-          delta = std::clamp(delta, -max_delta, max_delta);
+          // Apply to router level and clamp
+          double lvl = id(router_level).state;
+          double new_lvl = lvl + delta;
+          if (new_lvl < 0.0)   new_lvl = 0.0;
+          if (new_lvl > 100.0) new_lvl = 100.0;
           
-          // New router level
-          double new_router_level = id(router_level).state + delta;
-          new_router_level = std::clamp(new_router_level, 0.0, 100.0);
+          // Conditional integration (anti-windup)
+          bool at_low  = (new_lvl <= 0.0)   && (delta < 0.0);
+          bool at_high = (new_lvl >= 100.0) && (delta > 0.0);
+          if (!(at_low || at_high)) {
+            integral += error * dt;
+            if (integral >  I_LIMIT) integral =  I_LIMIT;
+            if (integral < -I_LIMIT) integral = -I_LIMIT;
+          }
           
-          id(router_level).publish_state(new_router_level);
-          
+          id(router_level).publish_state(new_lvl);
           prev_error = error;
+          
+          // Debug: uncomment while tuning
+          // ESP_LOGD("pid", "dt=%.2f err=%.1f P=%.2f I=%.2f D=%.2f dU=%.2f lvl=%.1f",
+          //          dt, error, p_term, i_term, d_term, delta, new_lvl);
