@@ -135,67 +135,77 @@ script:
           static double integral = 0.0;
           static double d_filt = 0.0;
           
-          // --- Time step (seconds) ---
+          // --- Time step ---
           double now = millis() / 1000.0;
-          double dt = (prev_ts > 0.0) ? (now - prev_ts) : 1.0;  // fallback 1s on first run
+          double dt = (prev_ts > 0.0) ? (now - prev_ts) : 1.0;
           if (dt <= 0.0) dt = 1.0;
           prev_ts = now;
           
-          // --- Tuned parameters ---
-          const double Kp = 0.34;
-          const double Ki = 0.006;      // integral gain
-          const double Kd = 0.11;       // derivative gain
-          const double max_delta = 5.0; // % per second limit on router_level change
-          const double deadband = 40.0; // W around target where error is treated as zero
-          const double alpha = 0.85;    // derivative low-pass factor (0..1, higher = smoother)
-          const double I_LIMIT = 4000.0;
+          // --- Tuned parameters (aim: remove ~10% offset without overshoot) ---
+          const double Kp = 0.36;      // ↑ a touch to tighten response
+          const double Ki = 0.012;     // ↑ integral to kill steady-state error
+          const double Kd = 0.10;      // derivative damping
+          const double Kb = 0.04;      // anti-windup back-calculation gain
+          const double max_delta = 6.0;  // %/s rate limit
+          const double deadband = 25.0;  // smaller deadband → integrator can work
+          const double alpha = 0.90;     // derivative LPF (higher = smoother)
+          const double I_LIMIT = 6000.0; // safety cap
           
           // --- Signals ---
-          double target = id(target_grid_exchange).state; // W
-          double actual = id(real_power).state;           // W
-          double error = target - actual;                 // + => need more load (raise level)
+          double target = id(target_grid_exchange).state;  // W
+          double actual = id(real_power).state;            // W
+          double error = target - actual;                  // + => need more load
           
           // Deadband near zero exchange
           if (fabs(error) < deadband) error = 0.0;
           
-          // Soft integral decay when crossing zero (reduces rebound undershoot)
+          // Soft integral decay on sign flip (prevents rebound undershoot)
           if (error * prev_error < 0) {
-            integral *= 0.5;  // keep 50% of stored bias
+            integral *= 0.6;  // keep 60% of bias instead of wiping it
           }
           
-          // Derivative with low-pass filtering
+          // Derivative with low-pass filter
           double d_raw = (error - prev_error) / dt;
           d_filt = alpha * d_filt + (1.0 - alpha) * d_raw;
           
-          // Provisional PID
+          // PID (unclamped control increment)
           double p_term = Kp * error;
           double i_term = Ki * integral;
           double d_term = Kd * d_filt;
-          double delta_unclamped = p_term + i_term + d_term;
+          double u = p_term + i_term + d_term;   // requested delta (%)
           
           // Rate limit (anti-slam)
-          double delta = delta_unclamped;
-          if (delta >  max_delta) delta =  max_delta;
-          if (delta < -max_delta) delta = -max_delta;
+          double u_rl = u;
+          if (u_rl >  max_delta) u_rl =  max_delta;
+          if (u_rl < -max_delta) u_rl = -max_delta;
           
-          // Apply to router level and clamp
+          // Apply to level and clamp
           double lvl = id(router_level).state;
-          double new_lvl = lvl + delta;
+          double new_lvl = lvl + u_rl;
           if (new_lvl < 0.0)   new_lvl = 0.0;
           if (new_lvl > 100.0) new_lvl = 100.0;
           
-          // Conditional integration (anti-windup)
-          bool at_low  = (new_lvl <= 0.0)   && (delta < 0.0);
-          bool at_high = (new_lvl >= 100.0) && (delta > 0.0);
-          if (!(at_low || at_high)) {
+          // --- Anti-windup (back-calculation)
+          // If we were rate-limited OR the output is saturated, bleed the integrator
+          bool rate_limited = (u_rl != u);
+          bool sat_high = (new_lvl >= 100.0) && (u_rl > 0.0);
+          bool sat_low  = (new_lvl <= 0.0)   && (u_rl < 0.0);
+          if (rate_limited || sat_high || sat_low) {
+            // Back-calc drives integral so that u tracks u_rl
+            integral += Kb * (u_rl - u) * dt;
+          } else {
+            // Normal integration
             integral += error * dt;
-            if (integral >  I_LIMIT) integral =  I_LIMIT;
-            if (integral < -I_LIMIT) integral = -I_LIMIT;
           }
           
+          // Keep integral bounded
+          if (integral >  I_LIMIT) integral =  I_LIMIT;
+          if (integral < -I_LIMIT) integral = -I_LIMIT;
+          
+          // Publish
           id(router_level).publish_state(new_lvl);
           prev_error = error;
           
-          // Debug: uncomment while tuning
-          // ESP_LOGD("pid", "dt=%.2f err=%.1f P=%.2f I=%.2f D=%.2f dU=%.2f lvl=%.1f",
-          //          dt, error, p_term, i_term, d_term, delta, new_lvl);
+          // Debug:
+          // ESP_LOGD("pid", "dt=%.2f err=%.1f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f lvl=%.1f",
+          //          dt, error, p_term, Ki*integral, d_term, u, u_rl, new_lvl);
