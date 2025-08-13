@@ -142,7 +142,7 @@ script:
           prev_ts = now;
           
           // --- Scaling & adaptive limits (tuned for faster recovery on -300..-1000 W) ---
-          const double POWER_SCALE = 500.0;   // normalize error (smaller -> stronger reaction)
+          const double POWER_SCALE = 600.0;   // normalize error (smaller -> stronger reaction)
           const double BASE_MAX_DELTA = 8.0;  // %/s minimum rate limit (faster base)
           const double DELTA_PER_KW = 12.0;   // extra %/s per 1 kW of error (more aggressive for large errors)
           
