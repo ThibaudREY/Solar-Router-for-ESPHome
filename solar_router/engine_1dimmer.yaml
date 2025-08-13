@@ -133,22 +133,22 @@ script:
           static double prev_error = 0.0;
           static double integral = 0.0;
           
-          const double dt = 1.0;       // seconds between calls
-          const double Kp = 1.0;       // proportional gain
-          const double Ki = 0.05;      // integral gain
-          const double Kd = 0.2;       // derivative gain
-          const double max_delta = 2.0; // max % change per cycle (anti-overshoot)
+          const double dt = 1.0;         // seconds between calls
+          const double Kp = 0.8;         // proportional gain
+          const double Ki = 0.08;        // integral gain (increased)
+          const double Kd = 0.15;        // derivative gain
+          const double max_delta = 4.0;  // max % change per cycle
           
           double target = id(target_grid_exchange).state;
           double actual = id(real_power).state;
           double error = target - actual;
           
-          // Reset integral if overshoot occurs (sign change)
+          // Instead of full reset, decay integral when overshoot happens
           if (error * prev_error < 0) {
-            integral = 0.0;  // wipe stored bias
+            integral *= 0.5;  // keep half of the bias
           }
           
-          // Integral term (with clamp)
+          // Integral term with clamp
           integral += error * dt;
           integral = std::clamp(integral, -500.0, 500.0);
           
@@ -158,10 +158,10 @@ script:
           // PID computation
           double delta = (Kp * error) + (Ki * integral) + (Kd * derivative);
           
-          // Limit rate of change per update
+          // Limit how fast router level can change
           delta = std::clamp(delta, -max_delta, max_delta);
           
-          // New router level
+          // Apply change
           double new_router_level = id(router_level).state + delta;
           new_router_level = std::clamp(new_router_level, 0.0, 100.0);
           
