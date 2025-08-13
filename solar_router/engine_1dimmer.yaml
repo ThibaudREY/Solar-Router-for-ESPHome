@@ -142,7 +142,7 @@ script:
           prev_ts = now;
           
           // --- Scaling & adaptive limits (tuned for faster recovery on -300..-1000 W) ---
-          const double POWER_SCALE = 600.0;   // normalize error (smaller -> stronger reaction)
+          const double POWER_SCALE = 680.0;   // normalize error (smaller -> stronger reaction)
           const double BASE_MAX_DELTA = 8.0;  // %/s minimum rate limit (faster base)
           const double DELTA_PER_KW = 12.0;   // extra %/s per 1 kW of error (more aggressive for large errors)
           
@@ -220,5 +220,5 @@ script:
           prev_error = error;
           
           // Debug trace — uncomment for a short tune run (collect logs for ~30s)
-          // ESP_LOGD("pid", "errW=%.0f err=%.3f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f max=%.2f lvl=%.1f",
-          //          error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl);
+           ESP_LOGD("pid", "errW=%.0f err=%.3f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f max=%.2f lvl=%.1f",
+                    error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl);
