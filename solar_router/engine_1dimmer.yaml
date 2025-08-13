@@ -141,19 +141,19 @@ script:
           if (dt <= 0.0) dt = 1.0;
           prev_ts = now;
           
-          // --- Scaling & adaptive limits (tuned for faster recovery on -300..-1000 W) ---
-          const double POWER_SCALE = 680.0;   // normalize error (smaller -> stronger reaction)
-          const double BASE_MAX_DELTA = 8.0;  // %/s minimum rate limit (faster base)
-          const double DELTA_PER_KW = 12.0;   // extra %/s per 1 kW of error (more aggressive for large errors)
+          // --- IMPROVED TUNING PARAMETERS ---
+          const double POWER_SCALE = 1000.0;    // Larger scale for gentler response
+          const double BASE_MAX_DELTA = 2.0;    // Much smaller base rate limit
+          const double DELTA_PER_KW = 3.0;      // Less aggressive scaling
           
-          // --- Tuned PID gains (percent per kW units) ---
-          const double Kp = 16.0;    // proportional (percent per kW)
-          const double Ki = 0.06;    // integral (percent per kW per s)
-          const double Kd = 0.60;    // derivative (percent per kW)
-          const double Kb = 0.04;    // anti-windup back-calculation gain
-          const double deadband = 15.0;  // W deadband (small so integrator can act)
-          const double alpha = 0.88;     // derivative low-pass (0..1)
-          const double I_LIMIT = 12000.0; // integral cap (kW*s percent units)
+          // --- CONSERVATIVE PID GAINS ---
+          const double Kp = 5.0;     // Much lower proportional gain
+          const double Ki = 0.02;    // Lower integral gain  
+          const double Kd = 0.15;    // Lower derivative gain
+          const double Kb = 0.1;     // Higher anti-windup gain
+          const double deadband = 25.0;  // Larger deadband for stability
+          const double alpha = 0.7;      // More derivative filtering
+          const double I_LIMIT = 5000.0; // Lower integral limit
           
           // --- Measurements ---
           double target = id(target_grid_exchange).state; // W
@@ -167,30 +167,32 @@ script:
             abs_error_w = 0.0;
           }
           
-          // Normalize error to kW units (smaller POWER_SCALE => stronger normalized error)
-          double error = error_w / POWER_SCALE;  // in kW units
+          // Normalize error to kW units
+          double error = error_w / POWER_SCALE;
           
-          // Soft integral decay on sign flip (prevents rebound undershoot but keeps bias)
-          if (error * prev_error < 0) {
-            integral *= 0.65;  // keep 65% of stored bias
+          // IMPROVED: More aggressive integral reset on large sign changes
+          if (error * prev_error < 0 && abs_error_w > 100.0) {
+            integral *= 0.3;  // Keep only 30% on large sign changes
+          } else if (error * prev_error < 0) {
+            integral *= 0.7;  // Keep 70% on small sign changes
           }
           
-          // Derivative raw and filtered
+          // Derivative with better filtering
           double d_raw = (error - prev_error) / dt;
           d_filt = alpha * d_filt + (1.0 - alpha) * d_raw;
           
-          // PID (percent output)
-          double p_term = Kp * error;            // percent
-          double i_term = Ki * integral;         // percent
-          double d_term = Kd * d_filt;           // percent
-          double u = p_term + i_term + d_term;   // requested percent delta (unclamped)
+          // PID calculation
+          double p_term = Kp * error;
+          double i_term = Ki * integral;
+          double d_term = Kd * d_filt;
+          double u = p_term + i_term + d_term;
           
-          // Adaptive max_delta: stronger with larger absolute error
+          // IMPROVED: More conservative adaptive scaling
           double adaptive_max = BASE_MAX_DELTA + DELTA_PER_KW * (abs_error_w / POWER_SCALE);
           if (adaptive_max < BASE_MAX_DELTA) adaptive_max = BASE_MAX_DELTA;
-          if (adaptive_max > 30.0) adaptive_max = 30.0; // hard safety cap (don't let it jump wildly)
+          if (adaptive_max > 8.0) adaptive_max = 8.0; // Much lower safety cap
           
-          // Rate limit (anti-slam)
+          // Rate limiting
           double u_rl = u;
           if (u_rl >  adaptive_max) u_rl =  adaptive_max;
           if (u_rl < -adaptive_max) u_rl = -adaptive_max;
@@ -201,24 +203,34 @@ script:
           if (new_lvl < 0.0)   new_lvl = 0.0;
           if (new_lvl > 100.0) new_lvl = 100.0;
           
-          // Anti-windup back-calculation
+          // IMPROVED: Better anti-windup with conditional integration
           bool rate_limited = (u_rl != u);
           bool sat_high = (new_lvl >= 100.0) && (u_rl > 0.0);
           bool sat_low  = (new_lvl <= 0.0)   && (u_rl < 0.0);
+          
           if (rate_limited || sat_high || sat_low) {
+            // Don't integrate when saturated or rate limited
             integral += Kb * (u_rl - u) * dt;
           } else {
-            integral += error * dt;
+            // Only integrate if we're not in deadband and not saturated
+            if (abs_error_w >= deadband) {
+              integral += error * dt;
+            }
           }
           
           // Bound integral
           if (integral >  I_LIMIT) integral =  I_LIMIT;
           if (integral < -I_LIMIT) integral = -I_LIMIT;
           
+          // ADDED: Decay integral when near target
+          if (abs_error_w < 50.0) {
+            integral *= 0.98;  // Slow decay when close to target
+          }
+          
           // Publish
           id(router_level).publish_state(new_lvl);
           prev_error = error;
           
-          // Debug trace — uncomment for a short tune run (collect logs for ~30s)
-           ESP_LOGD("pid", "errW=%.0f err=%.3f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f max=%.2f lvl=%.1f",
-                    error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl);
+          // Debug trace
+          ESP_LOGD("pid", "errW=%.0f err=%.3f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f max=%.2f lvl=%.1f int=%.2f",
+                   error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl, integral);
