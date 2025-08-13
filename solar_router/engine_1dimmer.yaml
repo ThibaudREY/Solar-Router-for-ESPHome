@@ -141,20 +141,19 @@ script:
           if (dt <= 0.0) dt = 1.0;
           prev_ts = now;
           
-          // --- Scaling & adaptive limits (tuned for your -300..-1000 W range) ---
-          const double POWER_SCALE = 1000.0; // interpret error per 1000 W (1 kW)
-          const double BASE_MAX_DELTA = 4.0; // %/s minimum rate limit
-          const double DELTA_PER_KW = 6.0;   // extra %/s per 1 kW of error magnitude
+          // --- Scaling & adaptive limits (tuned for faster recovery on -300..-1000 W) ---
+          const double POWER_SCALE = 800.0;   // normalize error (smaller -> stronger reaction)
+          const double BASE_MAX_DELTA = 8.0;  // %/s minimum rate limit (faster base)
+          const double DELTA_PER_KW = 12.0;   // extra %/s per 1 kW of error (more aggressive for large errors)
           
-          // --- Tuned PID gains (in percent per kW units) ---
-          // Interpretation: Kp = percent_per_kW, Ki = percent_per_kW_per_s, Kd = percent_per_kW
-          const double Kp = 12.0;   // 12% change per 1 kW of steady error
-          const double Ki = 0.025;  // integral accumulates -> % per (kW*s)
-          const double Kd = 0.8;    // derivative term scaled per kW
-          const double Kb = 0.04;   // anti-windup back-calculation
-          const double deadband = 20.0;  // W deadband (small to let integrator act)
-          const double alpha = 0.9;      // derivative low-pass (0..1)
-          const double I_LIMIT = 8000.0; // integral safety cap (in kW-s percent units)
+          // --- Tuned PID gains (percent per kW units) ---
+          const double Kp = 16.0;    // proportional (percent per kW)
+          const double Ki = 0.06;    // integral (percent per kW per s)
+          const double Kd = 0.60;    // derivative (percent per kW)
+          const double Kb = 0.04;    // anti-windup back-calculation gain
+          const double deadband = 15.0;  // W deadband (small so integrator can act)
+          const double alpha = 0.88;     // derivative low-pass (0..1)
+          const double I_LIMIT = 12000.0; // integral cap (kW*s percent units)
           
           // --- Measurements ---
           double target = id(target_grid_exchange).state; // W
@@ -168,29 +167,28 @@ script:
             abs_error_w = 0.0;
           }
           
-          // Error normalized to kW units for consistent gains
-          double error = error_w / POWER_SCALE;  // now in kW (e.g. -0.5 .. -1.0)
+          // Normalize error to kW units (smaller POWER_SCALE => stronger normalized error)
+          double error = error_w / POWER_SCALE;  // in kW units
           
-          // Soft integral decay on sign flip (avoid big rebound but keep bias)
+          // Soft integral decay on sign flip (prevents rebound undershoot but keeps bias)
           if (error * prev_error < 0) {
-            integral *= 0.6;
+            integral *= 0.65;  // keep 65% of stored bias
           }
           
-          // Derivative (raw) and filtered derivative
+          // Derivative raw and filtered
           double d_raw = (error - prev_error) / dt;
           d_filt = alpha * d_filt + (1.0 - alpha) * d_raw;
           
-          // PID (produces percent units)
+          // PID (percent output)
           double p_term = Kp * error;            // percent
-          double i_term = Ki * integral;         // percent (integral in kW*s)
+          double i_term = Ki * integral;         // percent
           double d_term = Kd * d_filt;           // percent
           double u = p_term + i_term + d_term;   // requested percent delta (unclamped)
           
-          // Adaptive max_delta based on error magnitude (bigger errors allow faster correction)
+          // Adaptive max_delta: stronger with larger absolute error
           double adaptive_max = BASE_MAX_DELTA + DELTA_PER_KW * (abs_error_w / POWER_SCALE);
-          // safety clamp
           if (adaptive_max < BASE_MAX_DELTA) adaptive_max = BASE_MAX_DELTA;
-          if (adaptive_max > 20.0) adaptive_max = 20.0; // absolute hard cap
+          if (adaptive_max > 30.0) adaptive_max = 30.0; // hard safety cap (don't let it jump wildly)
           
           // Rate limit (anti-slam)
           double u_rl = u;
@@ -203,14 +201,13 @@ script:
           if (new_lvl < 0.0)   new_lvl = 0.0;
           if (new_lvl > 100.0) new_lvl = 100.0;
           
-          // Anti-windup back-calculation: if rate-limited or saturated, correct integrator
+          // Anti-windup back-calculation
           bool rate_limited = (u_rl != u);
           bool sat_high = (new_lvl >= 100.0) && (u_rl > 0.0);
           bool sat_low  = (new_lvl <= 0.0)   && (u_rl < 0.0);
           if (rate_limited || sat_high || sat_low) {
             integral += Kb * (u_rl - u) * dt;
           } else {
-            // Normal integration: integrate the normalized error (kW -> kW*s)
             integral += error * dt;
           }
           
@@ -222,6 +219,6 @@ script:
           id(router_level).publish_state(new_lvl);
           prev_error = error;
           
-          // Debug (enable if you want to see live PID numbers in logs)
-          // ESP_LOGD("pid", "errW=%.1f err=%.3f P=%.3f I=%.3f D=%.3f u=%.3f u_rl=%.3f max=%.2f lvl=%.1f",
+          // Debug trace — uncomment for a short tune run (collect logs for ~30s)
+          // ESP_LOGD("pid", "errW=%.0f err=%.3f P=%.2f I=%.2f D=%.2f u=%.2f u_rl=%.2f max=%.2f lvl=%.1f",
           //          error_w, error, p_term, Ki*integral, d_term, u, u_rl, adaptive_max, new_lvl);
