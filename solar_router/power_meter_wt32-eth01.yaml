@@ -2,9 +2,6 @@
 
 esphome:
   min_version: 2024.12.0
-  platformio_options:
-    build_flags:
-      - -DCONFIG_TASK_WDT_TIMEOUT_S=10
 
 # ----------------------------------------------------------------------------------------------------
 # Use http request component
@@ -13,7 +10,7 @@ esphome:
 http_request:
   id: http_request_data
   useragent: ""
-  timeout: 1s
+  timeout: 500ms
   verify_ssl: False
 
 # ----------------------------------------------------------------------------------------------------
