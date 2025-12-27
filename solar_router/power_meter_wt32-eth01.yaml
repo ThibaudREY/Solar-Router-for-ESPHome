@@ -13,7 +13,7 @@ http_request:
   useragent: ""
   timeout: 5s
   verify_ssl: False
-  headers:
+  request_headers:
     Connection: keep-alive
 
 # ----------------------------------------------------------------------------------------------------
