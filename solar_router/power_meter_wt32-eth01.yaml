@@ -13,8 +13,6 @@ http_request:
   useragent: ""
   timeout: 5s
   verify_ssl: False
-  request_headers:
-    Connection: keep-alive
 
 # ----------------------------------------------------------------------------------------------------
 # Define scripts for power collection
@@ -42,6 +40,7 @@ script:
                 url: http://${power_meter_ip_address}/sensor/real_power
                 request_headers:
                   Content-Type: application/json
+                  Connection: keep-alive
                   #Authorization: ${power_meter_auth_header}
                 capture_response: true
                 max_response_buffer_size: 1024
