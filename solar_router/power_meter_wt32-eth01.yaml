@@ -69,6 +69,6 @@ script:
                 ESP_LOGW("custom", "Network not connected");
 
 interval:
-  - interval: 1s
+  - interval: 500ms
     then:
       - script.execute: power_meter_source
