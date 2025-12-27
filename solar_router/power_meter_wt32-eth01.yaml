@@ -11,7 +11,7 @@ esphome:
 http_request:
   id: http_request_data
   useragent: ""
-  timeout: 5s
+  timeout: 500ms
   verify_ssl: False
 
 # ----------------------------------------------------------------------------------------------------
