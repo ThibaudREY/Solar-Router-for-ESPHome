@@ -32,7 +32,7 @@ script:
   # When this value is positive, energy is taken from the grid.
   # When this value is negative, energy is pushed to the grid.
   - id: power_meter_source
-    mode: queued
+    mode: restart
     then:
       - if:
           condition:
