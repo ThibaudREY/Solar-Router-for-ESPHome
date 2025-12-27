@@ -13,6 +13,8 @@ http_request:
   useragent: ""
   timeout: 5s
   verify_ssl: False
+  headers:
+    Connection: keep-alive
 
 # ----------------------------------------------------------------------------------------------------
 # Define scripts for power collection
