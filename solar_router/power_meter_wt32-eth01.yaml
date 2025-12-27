@@ -56,9 +56,7 @@ script:
                           return true;
                         });
 
-                        if (ok) {
-                          id(last_success) = millis();
-                        } else {
+                        if (!ok) {
                           ESP_LOGW("power_meter", "JSON parse failed");
                         }
 
