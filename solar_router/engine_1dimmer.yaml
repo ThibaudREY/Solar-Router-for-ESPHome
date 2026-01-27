@@ -36,6 +36,7 @@ number:
     id: router_level
     min_value: 0
     max_value: 100
+    initial_value: 100
     step: 1
     unit_of_measurement: "%"
     optimistic: True
