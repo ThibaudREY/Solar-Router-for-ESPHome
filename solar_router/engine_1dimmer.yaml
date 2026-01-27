@@ -119,12 +119,7 @@ script:
     then:
       # Define the reouter level based on power measured and grid exchange target
       # The value of regulator is a precentage and is then limited to the range 0 100
-      - lambda: |-
-          #b if (isnan(id(real_power).state) || id(safety_limit)) {
-          #b   id(router_level).publish_state(0);
-          #b   return;
-          #b }
-          
+      - lambda: |-          
           if (id(hc).state == true) {
             id(router_level).publish_state(100.0);
             return;
