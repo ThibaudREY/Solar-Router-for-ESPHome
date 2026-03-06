@@ -121,12 +121,7 @@ script:
       # The value of regulator is a precentage and is then limited to the range 0 100
       - lambda: |-          
           if (isnan(id(real_power).state)) {
-            id(router_level).publish_state(100);
-            return;
-          }
-          
-          if (id(hc).state == true) {
-            id(router_level).publish_state(100.0);
+            id(router_level).publish_state(0);
             return;
           }
           
