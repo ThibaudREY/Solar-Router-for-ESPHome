@@ -3,6 +3,9 @@
 # ----------------------------------------------------------------------------------------------------
 <<: !include engine_common.yaml
 
+esphome:
+  min_version: 2024.12.0
+
 http_request:
   id: http_request_data
   useragent: ""
