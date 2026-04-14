@@ -25,44 +25,6 @@ interval:
       - script.execute: fetch_master_router_level
       - script.execute: fetch_master_real_power
 
-# ----------------------------------------------------------------------------------------------------
-# Fetch scripts
-# ----------------------------------------------------------------------------------------------------
-script:
-  - id: fetch_master_router_level
-    then:
-      - http_request.get:
-          url: !lambda |-
-            return "http://" + std::string("${master_ip}") + "/number/router_level";
-          on_response:
-            then:
-              - lambda: |-
-                  std::string body = id(http_request).get_string();
-
-                  auto pos = body.find("\"value\":");
-                  if (pos != std::string::npos) {
-                    float val = atof(body.substr(pos + 8).c_str());
-                    id(master_router_level) = val;
-                    id(last_master_update) = millis();
-                  }
-
-  - id: fetch_master_real_power
-    then:
-      - http_request.get:
-          url: !lambda |-
-            return "http://" + std::string("${master_ip}") + "/sensor/real_power";
-          on_response:
-            then:
-              - lambda: |-
-                  std::string body = id(http_request).get_string();
-
-                  auto pos = body.find("\"value\":");
-                  if (pos != std::string::npos) {
-                    float val = atof(body.substr(pos + 8).c_str());
-                    id(master_real_power) = val;
-                    id(last_master_update) = millis();
-                  }
-
 switch:
   # Define is router is active or not
   # When switch is ON, pooling timer will trigger every seconds
@@ -170,6 +132,40 @@ number:
 # ----------------------------------------------------------------------------------------------------
 
 script:
+  - id: fetch_master_router_level
+    then:
+      - http_request.get:
+          url: !lambda |-
+            return "http://" + std::string("${master_ip}") + "/number/router_level";
+          on_response:
+            then:
+              - lambda: |-
+                  std::string body = id(http_request).get_string();
+
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_router_level) = val;
+                    id(last_master_update) = millis();
+                  }
+
+  - id: fetch_master_real_power
+    then:
+      - http_request.get:
+          url: !lambda |-
+            return "http://" + std::string("${master_ip}") + "/sensor/real_power";
+          on_response:
+            then:
+              - lambda: |-
+                  std::string body = id(http_request).get_string();
+
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_real_power) = val;
+                    id(last_master_update) = millis();
+                  }
+
   # Manage energy regulation
   # Calculate the delta of percentage to apply to the router level status to go closer to the
   # objective. Closer we are to the objective smaller are the steps. Reactivity parameter is
