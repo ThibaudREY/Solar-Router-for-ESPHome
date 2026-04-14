@@ -3,6 +3,66 @@
 # ----------------------------------------------------------------------------------------------------
 <<: !include engine_common.yaml
 
+globals:
+  - id: master_router_level
+    type: float
+    initial_value: '0'
+
+  - id: master_real_power
+    type: float
+    initial_value: '0'
+
+  - id: last_master_update
+    type: uint32_t
+    initial_value: '0'
+
+# ----------------------------------------------------------------------------------------------------
+# Periodic fetch (aligned with meter: 1s)
+# ----------------------------------------------------------------------------------------------------
+interval:
+  - interval: 1s
+    then:
+      - script.execute: fetch_master_router_level
+      - script.execute: fetch_master_real_power
+
+# ----------------------------------------------------------------------------------------------------
+# Fetch scripts
+# ----------------------------------------------------------------------------------------------------
+script:
+  - id: fetch_master_router_level
+    then:
+      - http_request.get:
+          url: !lambda |-
+            return "http://" + std::string("${master_ip}") + "/number/router_level";
+          on_response:
+            then:
+              - lambda: |-
+                  std::string body = id(http_request).get_string();
+
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_router_level) = val;
+                    id(last_master_update) = millis();
+                  }
+
+  - id: fetch_master_real_power
+    then:
+      - http_request.get:
+          url: !lambda |-
+            return "http://" + std::string("${master_ip}") + "/sensor/real_power";
+          on_response:
+            then:
+              - lambda: |-
+                  std::string body = id(http_request).get_string();
+
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_real_power) = val;
+                    id(last_master_update) = millis();
+                  }
+
 switch:
   # Define is router is active or not
   # When switch is ON, pooling timer will trigger every seconds
@@ -119,7 +179,25 @@ script:
     then:
       # Define the reouter level based on power measured and grid exchange target
       # The value of regulator is a precentage and is then limited to the range 0 100
-      - lambda: |-          
+      - lambda: |-
+          // Fail-safe: no update from master
+          if (millis() - id(last_master_update) > 2000) {
+            id(router_level).publish_state(0);
+            return;
+          }
+
+          // Master must be FULL (100%)
+          if (id(master_router_level) < 100) {
+            id(router_level).publish_state(0);
+            return;
+          }
+
+          // Must have enough export power
+          if (id(master_real_power) >= -50.0) {
+            id(router_level).publish_state(0);
+            return;
+          }
+      
           if (isnan(id(real_power).state)) {
             id(router_level).publish_state(0);
             return;
