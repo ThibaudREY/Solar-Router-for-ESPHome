@@ -3,6 +3,9 @@
 # ----------------------------------------------------------------------------------------------------
 <<: !include engine_common.yaml
 
+http_request:
+  timeout: 500ms
+
 globals:
   - id: master_router_level
     type: float
