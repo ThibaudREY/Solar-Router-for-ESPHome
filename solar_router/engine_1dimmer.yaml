@@ -4,7 +4,10 @@
 <<: !include engine_common.yaml
 
 http_request:
+  id: http_request_data
+  useragent: ""
   timeout: 500ms
+  verify_ssl: False
 
 globals:
   - id: master_router_level
@@ -139,9 +142,14 @@ script:
   mode: single
   then:
     - http_request.get:
-        url: !lambda |-
-          return "http://${master_ip}/number/router_level";
-        on_response:
+        url: http://${master_ip}/number/router_level
+        request_headers:
+          Content-Type: application/json
+          Connection: keep-alive
+          #Authorization: ${power_meter_auth_header}
+        capture_response: true
+        max_response_buffer_size: 1024
+        on_response:     
           then:
             - lambda: |-
                 auto pos = body.find("\"value\":");
@@ -154,8 +162,12 @@ script:
   mode: single
   then:
     - http_request.get:
-        url: !lambda |-
-          return "http://${master_ip}/sensor/real_power";
+        url: http://${master_ip}/sensor/real_power
+        request_headers:
+          Content-Type: application/json
+          Connection: keep-alive
+        capture_response: true
+        max_response_buffer_size: 1024
         on_response:
           then:
             - lambda: |-
