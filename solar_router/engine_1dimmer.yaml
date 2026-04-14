@@ -140,7 +140,7 @@ script:
   then:
     - http_request.get:
         url: !lambda |-
-          return "http://192.168.1.31/number/router_level";
+          return "http://${master_ip}/number/router_level";
         on_response:
           then:
             - lambda: |-
@@ -155,7 +155,7 @@ script:
   then:
     - http_request.get:
         url: !lambda |-
-          return "http://192.168.1.31/sensor/real_power";
+          return "http://${master_ip}/sensor/real_power";
         on_response:
           then:
             - lambda: |-
