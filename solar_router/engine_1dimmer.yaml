@@ -142,44 +142,44 @@ number:
 
 script:
   - id: fetch_master_router_level
-  mode: single
-  then:
-    - http_request.get:
-        url: http://${master_ip}/number/router_level
-        request_headers:
-          Content-Type: application/json
-          Connection: keep-alive
-          #Authorization: ${power_meter_auth_header}
-        capture_response: true
-        max_response_buffer_size: 1024
-        on_response:     
-          then:
-            - lambda: |-
-                auto pos = body.find("\"value\":");
-                if (pos != std::string::npos) {
-                  float val = atof(body.substr(pos + 8).c_str());
-                  id(master_router_level) = val;
-                  id(last_master_update) = millis();
-                }
+    mode: single
+    then:
+      - http_request.get:
+          url: http://${master_ip}/number/router_level
+          request_headers:
+            Content-Type: application/json
+            Connection: keep-alive
+            #Authorization: ${power_meter_auth_header}
+          capture_response: true
+          max_response_buffer_size: 1024
+          on_response:     
+            then:
+              - lambda: |-
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_router_level) = val;
+                    id(last_master_update) = millis();
+                  }
   - id: fetch_master_real_power
-  mode: single
-  then:
-    - http_request.get:
-        url: http://${master_ip}/sensor/real_power
-        request_headers:
-          Content-Type: application/json
-          Connection: keep-alive
-        capture_response: true
-        max_response_buffer_size: 1024
-        on_response:
-          then:
-            - lambda: |-
-                auto pos = body.find("\"value\":");
-                if (pos != std::string::npos) {
-                  float val = atof(body.substr(pos + 8).c_str());
-                  id(master_real_power) = val;
-                  id(last_master_update) = millis();
-                }
+    mode: single
+    then:
+      - http_request.get:
+          url: http://${master_ip}/sensor/real_power
+          request_headers:
+            Content-Type: application/json
+            Connection: keep-alive
+          capture_response: true
+          max_response_buffer_size: 1024
+          on_response:
+            then:
+              - lambda: |-
+                  auto pos = body.find("\"value\":");
+                  if (pos != std::string::npos) {
+                    float val = atof(body.substr(pos + 8).c_str());
+                    id(master_real_power) = val;
+                    id(last_master_update) = millis();
+                  }
 
   # Manage energy regulation
   # Calculate the delta of percentage to apply to the router level status to go closer to the
