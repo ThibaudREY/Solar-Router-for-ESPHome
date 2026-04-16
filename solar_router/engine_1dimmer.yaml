@@ -218,16 +218,12 @@ script:
 
           // Master must be FULL (100%)
           if (id(master_router_level) < 90) {
-            ESP_LOGD("pid", "master level under 100% (%d), setting level to 0", master_router_level);
-            id(router_level).publish_state(0);
-            return;
-          }
-
-          // Must have enough export power
-          if (id(master_real_power) >= -50.0) {
-            ESP_LOGD("pid", "export over -50W, setting level to 0");
-            id(router_level).publish_state(0);
-            return;
+            // Must have enough export power
+            if (id(master_real_power) >= -10.0) {
+              ESP_LOGD("pid", "export over -10W, setting level to 0");
+              id(router_level).publish_state(0);
+              return;
+            }
           }
       
           if (isnan(id(real_power).state)) {
