@@ -155,11 +155,20 @@ script:
           on_response:     
             then:
               - lambda: |-
-                  auto pos = body.find("\"value\":");
-                  if (pos != std::string::npos) {
-                    float val = atof(body.substr(pos + 8).c_str());
-                    id(master_router_level) = val;
+                 if (response->status_code != 200) {
+                    ESP_LOGW("power_meter", "HTTP %d", response->status_code);
+                    return;
+                  }
+
+                  bool ok = json::parse_json(body, [](JsonObject root) {
+                    if (!root.containsKey("value")) return false;
+                    id(master_router_level) = root["value"].as<float>();
                     id(last_master_update) = millis();
+                    return true;
+                  });
+
+                  if (!ok) {
+                    ESP_LOGW("power_meter", "JSON parse failed");
                   }
   - id: fetch_master_real_power
     mode: single
@@ -174,11 +183,20 @@ script:
           on_response:
             then:
               - lambda: |-
-                  auto pos = body.find("\"value\":");
-                  if (pos != std::string::npos) {
-                    float val = atof(body.substr(pos + 8).c_str());
-                    id(master_real_power) = val;
+                  if (response->status_code != 200) {
+                    ESP_LOGW("power_meter", "HTTP %d", response->status_code);
+                    return;
+                  }
+
+                  bool ok = json::parse_json(body, [](JsonObject root) {
+                    if (!root.containsKey("value")) return false;
+                    id(master_real_power) = root["value"].as<float>();
                     id(last_master_update) = millis();
+                    return true;
+                  });
+
+                  if (!ok) {
+                    ESP_LOGW("power_meter", "JSON parse failed");
                   }
 
   # Manage energy regulation
