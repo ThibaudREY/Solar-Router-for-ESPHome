@@ -200,7 +200,7 @@ script:
 
           // Master must be FULL (100%)
           if (id(master_router_level) < 100) {
-            ESP_LOGD("pid", "master level under 100%, setting level to 0");
+            ESP_LOGD("pid", "master level under 100% (%d), setting level to 0", master_router_level);
             id(router_level).publish_state(0);
             return;
           }
